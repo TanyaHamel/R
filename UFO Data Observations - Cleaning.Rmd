@@ -1,0 +1,280 @@
+---
+title: "US UFO Analysis"
+author: "Tanya"
+date: "23/05/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Loading the Data#
+
+
+```{r, include=FALSE}
+library(tidyr)
+library(ggplot2)
+library(plotly)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+library(maps)
+library(mapdata)
+library(forcats)
+library(caTools)
+library(lubridate)
+#library(usmap)
+#library(tmap)
+```
+
+
+```{r, include=FALSE}
+UfoClean <-read.csv("C:\\Users\\av311\\OneDrive\\Documents\\R\\STAT1003 Data Science\\Group Project\\FinalCleaned.csv", header = TRUE) 
+```
+
+
+```{r}
+UfoClean$Date <- as.Date(UfoClean$Date, format = "%d/%m/%Y")  #converting Date back to date format
+```
+
+
+The data is messed up in 1920 (not sure how we missed it) - there are thousands entered in then, most likely historical data being inputted on that date.
+
+
+```{r}  
+#modified from Ryan's project
+copy1 <- UfoClean
+copy1$Year <- as.numeric(format(copy1$Date, '%Y'))
+counts <- summarise(group_by(copy1[copy1$Year==1920,],Year),Count =n())
+counts
+```
+
+
+Let's go from 1921.
+
+
+#RESTARTING DATA FROM 1921#
+
+##Historial Reporting##
+
+**Graph 1**
+```{r}
+copy2 <- copy1
+copy2$Year <- as.numeric(format(copy2$Date, '%Y'))
+count <- summarise(group_by(copy2[copy2$Year>=1921,],Year),Count =n())
+
+p1 <- count %>%
+  ggplot(aes(x=Year, y=Count))+
+  geom_area(fill="turquoise") +
+  geom_line(color="lightblue") +
+  labs(x="Year", y="Sightings Reported", title = "Number of UFO Sightings Reported by Year, 1921 - 2020")
+p1 <- ggplotly(p1)
+p1
+
+#interactive map adapted from https://www.r-graph-gallery.com/163-interactive-area-chart-plotly.html
+```
+
+
+**Graph 2**
+```{r}
+plot(ufo_data1921$Date, xlab = "Total occurances", ylab = "Decade", main ="Sightings by Decade, 1920 - 2020", col="Purple")
+```
+
+
+The bulk of the reporting has occurred after the year 2000.  This could be due to the rise in the use of personal mobile phones, ease of access to reporting incidents, or any number of reasons. Graph 1 is interactive and displays the number of incidents in a given year when hovered over that section of the graph.  Graph 2 illustrates the casual to significant increase in incident reports.
+
+
+```{r}
+ufo_data1921 = subset(copy1, copy1$Date>="1921-01-01")  #subsetting the data to work with from 1921
+```
+
+
+**Map 1**
+```{r, echo=FALSE, fig.height = 5, fig.width=7.5}
+map("usa", fill = TRUE, col = "darkgrey")
+map.axes()
+map.scale(x = 116.1, ratio = FALSE)
+points(ufo_data1921$Long, ufo_data1921$Lat, cex = 0.8, pch = 21, col = "pink",
+bg = rgb(1, 0, 0, 0.5))
+title("Total Sightings Recorded by NUFORC 1921 - 2020")
+```
+
+The sightings, marked on Map 1 of the US as red dots, share a similar growth pattern to population growth and density over time. 
+
+knitr::include_url(https://i.imgur.com/kOrMbUs.gif)  Video obtained from https://vividmaps.com/animated-map-population-density-u-s-1790-2010/
+
+
+This data has been presented in a similar format by Abigail Larson (2017) https://www.kaggle.com/abigaillarion/ufo-reports-in-united-states using a Python notebook and edited data from 2014.  Our representation is different and relevant because it was extracted directly from NUFORC, latitude and longitude were added via Excel based on city, we worked with RStudio to generate the map, and our dataset is the most current dataset available (as at April 2020).
+
+##Where is the best place to find a UFO?##
+
+Our data lacks population and land milage parameters to normalise incidents. We were able to source population and land mileage data however we were unable to merge the tables without significant data loss.  Though we have insufficient data to create accurate predictions, we can discuss past proportions and identify trends that may continue in the future.
+
+
+The top 10 States and the proportions of reported incidents are:
+
+**Table 1**
+
+```{r, echo=FALSE}
+countStates <- summarise(group_by(ufo_data1921, State),Count =n())
+countStates$Proportion = round(((countStates$Count/55734)*100), digits = 2)
+head(arrange(countStates,desc(Count)), n = 10)
+
+```
+
+So, if one wanted to try and find an encounter with a UFO, being in California will give them at least a 5% advantage over all of the other states, with the margin significantly widening after Florida.  However, if we looked at the comparison at a city level, our results would be different: 
+
+**Table 2**
+
+```{r}
+countCities <- summarise(group_by(ufo_data1921, City, State),Count =n())
+countCities$Proportion = round(((countCities$Count/55734)*100), digits = 2)
+head(arrange(countCities,desc(Count)), n = 10)
+```
+
+Table 2 identifies the top city that reported the most UFO interactions was Phoenix Arizona, with a slightly higher proportion of sightings than Las Vegas. We note that two cities in California make the top 6 cities who reported UFO sightings.
+
+Therefore, both tables show California to have a strong past performance of sightings, and should the trend continue, California would be the best state to visit for UFO encounters and in particular, San Diego or Los Angeles.
+
+##What would an encounter look like?##
+
+Graph 3 illustrates the overwhelming popularity of light shape types reported.  Proportionally, light shape types were reported in about 21% of all UFO incident reports compared to the next highest reported shape, the Circle, at a proportion of about 11%. Other popular shapes recorded circle, triangle, and fireball.  Uknown includes reports where a shape was not disclosed by the reporting party. 
+
+**Graph 3**
+```{r, echo=FALSE, fig.height = 7, fig.width=7}
+p2<- ufo_data1921 %>%
+  ggplot(aes(x= (fct_rev(fct_infreq(Shape))), fill = Shape))+
+  geom_bar()+
+  labs(x="Shape Type", y="Number of Shapes reported", title = "Number of UFO Shape Types Reported 1921 - 2020")+
+  coord_flip()+
+  theme(legend.position ="none")
+p2 <- ggplotly(p2)
+p2
+
+```
+
+```{r, echo=FALSE}
+11750/55734  
+6367/55734
+```
+
+
+
+
+
+
+##Observations using all cleaned data including 1920##
+
+
+```{r, include=FALSE}
+UfoClean <-read.csv("C:\\Users\\av311\\OneDrive\\Documents\\R\\STAT1003 Data Science\\Group Project\\FinalCleaned.csv", header = TRUE) 
+```
+
+
+```{r}
+UfoClean$Date <- as.Date(UfoClean$Date, format = "%d/%m/%Y")  #converting Date back to date format
+```
+
+
+##Historial Reporting##
+
+**Graph 1**
+```{r}
+copy3 <- UfoClean
+copy3$Year <- as.numeric(format(copy3$Date, '%Y'))
+countAll <- summarise(group_by(copy3,Year),Count =n())
+
+p3 <- countAll %>%
+  ggplot(aes(x=Year, y=Count))+
+  geom_area(fill="turquoise") +
+  geom_line(color="lightblue") +
+  labs(x="Year", y="Sightings Reported", title = "Number of UFO Sightings Reported by Year, 1920 - 2020")
+p3 <- ggplotly(p3)
+p3
+
+#interactive map adapted from https://www.r-graph-gallery.com/163-interactive-area-chart-plotly.html
+```
+
+
+**Graph 2**
+```{r}
+plot(UfoClean$Date, xlab = "Total occurances", ylab = "Decade", main ="Sightings by Decade, 1920 - 2020", col="Purple")
+```
+
+
+The bulk of the reporting has occurred after the year 2000.  This could be due to the rise in the use of personal mobile phones, ease of access to reporting incidents, or any number of reasons. Graph 1 is interactive and displays the number of incidents in a given year when hovered over that section of the graph.  Graph 2 illustrates the casual to significant increase in incident reports.
+
+
+**Map 1**
+```{r, echo=FALSE, fig.height = 5, fig.width=7.5}
+map("usa", fill = TRUE, col = "darkgrey")
+map.axes()
+map.scale(x = 116.1, ratio = FALSE)
+points(ufoClean$Long, UfoClean$Lat, cex = 0.8, pch = 21, col = "pink",
+bg = rgb(1, 0, 0, 0.5))
+title("Total Sightings Recorded by NUFORC 1921 - 2020")
+```
+
+The sightings, marked on Map 1 of the US as red dots, share a similar growth pattern to population growth and density over time. 
+
+knitr::include_url(https://i.imgur.com/kOrMbUs.gif)  Video obtained from https://vividmaps.com/animated-map-population-density-u-s-1790-2010/
+
+
+This data has been presented in a similar format by Abigail Larson (2017) https://www.kaggle.com/abigaillarion/ufo-reports-in-united-states using a Python notebook and edited data from 2014.  Our representation is different and relevant because it was extracted directly from NUFORC, latitude and longitude were added via Excel based on city, we worked with RStudio to generate the map, and our dataset is the most current dataset available (as at April 2020).
+
+##Where is the best place to find a UFO?##
+
+Our data lacks population and land milage parameters to normalise incidents. We were able to source population and land mileage data however we were unable to merge the tables without significant data loss.  Though we have insufficient data to create accurate predictions, we can discuss past proportions and identify trends that may continue in the future.
+
+
+The top 10 States and the proportions of reported incidents are:
+
+**Table 1**
+
+```{r, echo=FALSE}
+countStates2 <- summarise(group_by(UfoClean, State),Count =n())
+countStates2$Proportion = round(((countStates2$Count/75194)*100), digits = 2)
+head(arrange(countStates2,desc(Count)), n = 10)
+
+```
+
+So, if one wanted to try and find an encounter with a UFO, being in California will give them at least a 4% advantage over all of the other states, with the margin significantly widening after Florida.  However, if we looked at the comparison at a city level, our results would be different: 
+
+**Table 2**
+
+```{r}
+countCities2 <- summarise(group_by(UfoClean, City, State),Count =n())
+countCities2$Proportion = round(((countCities2$Count/75194)*100), digits = 2)
+head(arrange(countCities2,desc(Count)), n = 10)
+```
+
+Table 2 identifies the top city that reported the most UFO interactions was Phoenix Arizona, with a slightly higher proportion of sightings than Las Vegas. We note that two cities in California make the top 6 cities who reported UFO sightings.
+
+Therefore, both tables show California to have a strong past performance of sightings, and should the trend continue, California would be the best state to visit for UFO encounters and in particular, San Diego or Los Angeles.
+
+##What would an encounter look like?##
+
+Graph 3 illustrates the overwhelming popularity of light shape types reported.  Proportionally, light shape types were reported in about 16% of all UFO incident reports compared to the next highest reported shape, the Circle, at a proportion of about 8%. Other popular shapes recorded circle, triangle, and fireball.  Uknown includes reports where a shape was not disclosed by the reporting party. 
+
+**Graph 3**
+```{r, echo=FALSE, fig.height = 7, fig.width=7}
+p2<- UfoClean %>%
+  ggplot(aes(x= (fct_rev(fct_infreq(Shape))), fill = Shape))+
+  geom_bar()+
+  labs(x="Shape Type", y="Number of Shapes reported", title = "Number of UFO Shape Types Reported 1921 - 2020")+
+  coord_flip()+
+  theme(legend.position ="none")
+p2 <- ggplotly(p2)
+p2
+
+```
+
+```{r, echo=FALSE}
+11750/75194  
+6367/75194
+```
+
+
+
+

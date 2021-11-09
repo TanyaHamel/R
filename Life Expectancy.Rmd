@@ -1,0 +1,292 @@
+---
+title: "Project-Life Expectancy"
+author: "Tanya"
+date: "08/11/2020"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+```{r, include=FALSE}
+library(PerformanceAnalytics)
+```
+
+## Project Aim
+
+The aim of the project is to investigate how life expectancy in males relates to country demographics. A multivariate model will be derived that best describes how male life expectancy varies with respect to birth rates, death rates, infant deaths, GDP, and country group.  A significance level $\alpha$ of 0.05 will be used throughout this analysis to determine if a variable is statistically significant. The data used in the analysis was collected from Day, A (1992) and U.NE.S.C.O. (1990). 
+
+## Exploratory Analysis
+
+
+```{r, include=FALSE}
+load("LifeExpectancy.RData")
+```
+
+```{r, include=FALSE}
+head(LifeExpectancy)
+```
+
+Contained in the dataset 'LifeExpectancy' are 8 variables and 97 rows of data.  All variables are numerical except for Country, which is a categorical variable.  Country group contains values from 1-6, from which each country was assigned to a particular group.  Below is a short exploratory sample of the data:
+
+```{r, echo=FALSE}
+str(LifeExpectancy)
+```
+
+Though the analysis can be conducted simultaneously, the focus for this report will be on male life expectancy.   There may be other variables to consider when analyzing female life expectancy, such as childbirth deaths, that may warrant a different study altogether.
+
+```{r, include=FALSE}
+chart.Correlation(LifeExpectancy[,-c(2,8)]) 
+```
+It appears that all variables have some significance towards male life expectancy.  The level of significance will be determined in further detail over the regression analysis.  GNP appeared to have an exponential relationship and required logarithmic transformation.  
+
+```{r, echo=FALSE}
+par(mfrow=c(2,3))
+plot(Male.Expectancy~Birth.Rate+Death.rate+Infant.Deaths+(log(GNP)), data = LifeExpectancy)
+boxplot(Male.Expectancy~Country.Group, data= LifeExpectancy)
+```
+
+It appears that all variables have some significance towards male life expectancy.  The level of significance will be determined in further detail over the regression analysis.  GNP appeared to have an exponential relationship and required logarithmic transformation.  
+
+When reviewing the variables in further detail, there are outlines in Death.rate and potentially infant.Deaths that should be explored.  It also appears that Death.rate and Infant.Deaths have clustering, though remain linear in form.  Birth.Rate has a slight curve to its form, though remains linear.  Only GNP has a positive direction, while Birth.Rate, Death.rate, and infant.Deaths have a negative direction.
+
+
+```{r, echo=FALSE}
+par(mfrow=c(2,3))
+plot(Male.Expectancy~Birth.Rate+Death.rate+Infant.Deaths+(log(GNP)), data = LifeExpectancy)
+boxplot(Male.Expectancy~Country.Group, data= LifeExpectancy)
+```
+
+Variance appears to be similar among groups, with the possible exception of group 4 appear to have a right skew.  Group 5 appears to be There are also a few outliers in group 2 and 3 that will be analyzed in further detail.
+
+
+## Simple Linear Regression Analysis
+
+From the above correlation chart, there appears to be a very strong negative correlation between Male.Expectancy and Infant.Deaths.  A simple linear regression analysis will be conducted to determine the relationship between infant deaths and male life expectancy.
+
+The null hypothesis for this analysis is $H_o=H_a$, where infant deaths do not have an impact on male life expectancy.  The alternative hyothesis, that infant deaths do have an effect on male life expectancy is $H_o~!=H_a$.
+
+```{r, echo=FALSE}
+slr.lm<-lm(Male.Expectancy~Infant.Deaths, data=LifeExpectancy)
+plot(Male.Expectancy ~ Infant.Deaths, data=LifeExpectancy, xlab="Infant Deaths", ylab="Male Life Expectancy", main="Male Life Expectancy ~ Infant Deaths")
+abline(slr.lm, col="red")
+```
+```{r, include=FALSE}
+summary(slr.lm)
+anova(slr.lm)
+```
+Assumptions in a simple linear model are:
+1. $E(E_i)=0$, for all *i*
+2. $Var(E_i)=\theta^2$, for all *i*
+3. $E_i$ and $E_j$ are independent for all *i*$!=$*j*
+4. $E_i$ ~$N(0,\theta^2)$
+
+To determine if the assumptions are valid normality, independence, and variance are tested with the residuals of the linear model.
+
+```{r, echo=FALSE}
+res=slr.lm$residuals
+std.res=rstandard(slr.lm)  ## standardised residuals
+par(mfrow=c(2,2))  ## plotting 4 plots to check normality
+hist(res)
+hist(std.res)
+qqnorm(res)
+qqline(res) #adding a line to the qqnorm(res) plot
+qqnorm(std.res)
+qqline(std.res) #adding a line to the qqnorm(std.res) plot
+```
+The above graphs demonstrate that normality is satisfied.  The Q-Q Plots show the residuals are largely on the lines.  The histograms of the residuals also show that there is general normality.  
+
+```{r, include=FALSE}
+par(mfrow=c(1,2))
+boxplot(res, main="Residulas")
+boxplot(std.res, main="Std. Residuals")
+```
+The next residual analysis is to check independence and constant variance. We plot both residuals and standardised residuals against time (top left and top right). From these plots we can confirm the the residual are random scattered with no pattern whatsoever.
+
+```{r, echo=FALSE}
+par(mfrow=c(2,2))
+plot(res, xlab="Male Life Expectancy", ylab="Residuals") ## Residuals vs Life Expectancy
+abline(h=0, col="red")
+plot(std.res,xlab="Male Life Expectancy", ylab="Standardised Residuals")
+abline(h=0, col="red")
+plot(LifeExpectancy$Infant.Deaths,res, xlab="Infant Deaths", ylab="Residuals") # Residuals vs x
+abline(h=0, col="red")
+plot(LifeExpectancy$Infant.Deaths,std.res,  xlab="Infant Deaths", ylab="Standardised Residuals")
+abline(h=0, col="red")
+
+```
+
+When plotted against time, the residuals appear scattered about 0.  However, when plotted against Infant deaths to check for consistent varaince and randomness, there appears to be clustering in lower numbers and an increase in variance, meaning that many countries reported few infant deaths in 1990.  There also appears to be an outlier which may impact the regression analysis.
+
+```{r, echo=FALSE}
+par(mfrow=c(2,2))
+plot(slr.lm)
+```
+
+The rule for simple linear regression for classifying a point as a leverage point is if leverage $h_{ii} > 2(p+1)/n.$ As $n=97$, the rule is $h_{ii} > 0.05$. As leverage $h_{ii}$ in the above bottom right has two points greater than 0.05, there are leverage points, though because they fall within the range of (2, -2) they are considered good leverage points. To calculate Cook's Distance, $D_i$, the formula is $D_i=(r_i^2/2)(h_{ii}/1-h{ii})$ and the result is that points have an influence on the outcome of the model if $D_i > 0.052$  To confirm if any of these points should be excluded from the regression analysis further review on the leverage and cooks distance will be conducted.
+
+```{r, include=FALSE}
+Leverage.slr<-hatvalues(slr.lm)
+Cooks.Dist.slr<-cooks.distance(slr.lm)
+Infant.Death<-LifeExpectancy$Infant.Deaths
+```
+
+```{r, include=FALSE}
+par(mfrow=c(1,2))
+plot(Leverage.slr~Infant.Death)
+abline(h=0.05, col="red")
+plot(Cooks.Dist.slr~Infant.Death)
+abline(h=0.05, col="red")
+```
+
+```{r, include=FALSE}
+InflCheck.slr<-influence.measures(slr.lm)
+InflCheck.slr
+```
+Row 43 and 87 have hat values above 0.05.
+Rows 43, 55, 65, 82, 85 and 91 all have cook distance values above 0.05.
+
+The identified values will be excluded from the analysis to determine if the model will fit better once the noted outliers and leverage points are excluded.
+
+
+```{r, include = FALSE}
+slr2.lm<- lm(Male.Expectancy~Infant.Deaths, data = LifeExpectancy, subset = -c(43,55,65,82,85,87,91))
+```
+
+
+```{r, include=FALSE}
+res2=slr2.lm$residuals
+std.res2=rstandard(slr2.lm)  ## standardised residuals
+par(mfrow=c(2,2))  ## plotting 4 plots to check normality
+hist(res2)
+hist(std.res2)
+qqnorm(res2)
+qqline(res2) #adding a line to the qqnorm(res) plot
+qqnorm(std.res2)
+qqline(std.res2) #adding a line to the qqnorm(std.res) plot
+```
+```{r, include=FALSE}
+RemovedOutliers.LifeExpectancy<- LifeExpectancy[-c(43,55,65,82,85,87,91),]
+```
+
+```{r, include=FALSE}
+dim(RemovedOutliers.LifeExpectancy)
+```
+
+```{r, echo = FALSE}
+par(mfrow=c(2,2))
+plot(res2, xlab="Male Life Expectancy", ylab="Residuals") ## Residuals vs Life Expectancy
+abline(h=0, col="red")
+plot(std.res2,xlab="Male Life Expectancy", ylab="Standardised Residuals")
+abline(h=0, col="red")
+plot(RemovedOutliers.LifeExpectancy$Infant.Deaths,res2, xlab="Infant Deaths", ylab="Residuals") # Residuals vs x
+abline(h=0, col="red")
+plot(RemovedOutliers.LifeExpectancy$Infant.Deaths,std.res2,  xlab="Infant Deaths", ylab="Standardised Residuals")
+abline(h=0, col="red")
+```
+There still appears to be a bit of clustering and a slight variance, however the model appears better fitted once the influenctial data was removed from it.
+
+```{r, echo=FALSE}
+plot(Male.Expectancy ~ Infant.Deaths, data=RemovedOutliers.LifeExpectancy, xlab="Infant Deaths", ylab="Male Life Expectancy", main="Male Life Expectancy ~ Infant Deaths")
+abline(slr2.lm, col="red")
+```
+
+```{r, echo=FALSE}
+summary(slr2.lm)
+anova(slr2.lm)
+```
+From the above summary output, the regression equation is $y = 72.423-0.202x$.  That is, for every 1 infant death, male life expectancy decreased by 0.202 years. The average male life expectancy, with no infant deaths, is 72.423 years.  As the p-value is quite small, the null hypothesis would be rejected in favour of the alternative, that is infant deaths contribute to male life expectancy.
+
+The 95% confidence interval for the slope is (-0.217, -0.188) and the range is (71.487, 73.360).
+
+```{r, include=FALSE}
+confint(slr2.lm)
+```
+
+## Multiple Linear Regression Analysis
+
+In this analysis, the null hypothesis is that all variables do not have an effect on male life expectancy and the alternative hypothesis is that there are variables that affect male life expectancy.  This is written as $H_o=H_a$ and $H_o~!=H_a$ respectively, where $H_a$ is the variables contained within this multi-linear regression analysis.
+
+```{r, include=FALSE}
+LifeExpectancyMale <-RemovedOutliers.LifeExpectancy[, -2]
+head(LifeExpectancyMale)
+```
+
+```{r, echo=FALSE}
+mlr.all <- lm(Male.Expectancy ~ ., data = LifeExpectancyMale[, -7])
+summary(mlr.all)
+```
+From the above regression output, Country.Group is significant, but as it's p-value is slightly above a significance level of 0.05. 
+
+
+```{r, include=FALSE}
+# Set up simplest model for forward regression  This is the null model (just the mean)
+flm.0 <- lm(Male.Expectancy ~ 1, data = RemovedOutliers.LifeExpectancy)
+```
+
+```{r, include=FALSE}
+# Set up a model that has all the variables
+flm.all <- lm(Male.Expectancy ~ ., data = RemovedOutliers.LifeExpectancy)
+summary(flm.all)
+```
+
+```{r, include=FALSE}
+# Forward selection
+flm.forward <- step(flm.0, scope = formula(flm.all), direction = "forward", trace = 0)
+#When running this type of model, R tells me attempting this on an essentially perfect fit is nonsense, so it is excluded from the results.
+```
+
+
+```{r, echo=FALSE}
+mlr.all <- lm(Male.Expectancy ~ Birth.Rate+Death.rate+Infant.Deaths+GNP, data = LifeExpectancyMale)
+summary(mlr.all)
+```
+To determine if the model satisfies normality and variance a visual review of the residuals is undertaken: 
+```{r, echo=FALSE}
+par(mfrow = c(2,2))
+plot(mlr.all)
+```
+The residuals vs Fitted are consistent, the Q-Q plot also fits well, aside from the end point, however there may be outliers identified in the leverage plot.
+
+Leverage $h_{ii} > 2(p+1)/n.$ As $n=90$ and $p=4$, the rule is $h_{ii} > 0.11$. As leverage $h_{ii}$ in the above bottom right has a few points above 0.11, there are leverage points. To calculate Cook's Distance, $D_i$, the formula is $D_i=(r_i^2/2)(h_{ii}/1-h{ii})$ and the result is that points have an influence on the outcome of the model if $D_i > 0.12$. 
+
+```{r, include=FALSE}
+InflCheck.mlr<-influence.measures(mlr.all)
+InflCheck.mlr
+```
+
+Rows 23 and 61 have hat and Cook's Distance values above the calculated tolerance level and will be excluded from the analysis based on their influence on the model.
+
+```{r, echo=FALSE}
+mlr2.all <- lm(Male.Expectancy ~ Birth.Rate+Death.rate+Infant.Deaths+GNP, data = LifeExpectancyMale, subset = -c(23,61))
+summary(mlr2.all)
+```
+
+```{r, echo=FALSE}
+par(mfrow = c(2,2))
+plot(mlr2.all)
+```
+
+Based on the output, the average male life expectancy is 77.39.  The multivariate regression model is $y=77.39-0.176x_1-0.571x_2-0.993x_3+0.0001x_4$.  The model is essentially a perfect fit.  Attempting to run different variations arrives at the same conclusion.
+
+As the p-value of $2.2*10^{-16}$ quite a bit smaller than the significance level of 0.05, the null hypothesis is rejected in favour of the alternative.  That is, the variables have a statistically significant effect on male life expectancy.
+
+The 95% confidence intervals for the variables is as follows:
+
+```{r, echo=FALSE}
+round(confint(mlr2.all),4)
+```
+## Conclusion
+
+Using a significance level $\alpha$ of 0.05, in both the simple linear regression and multi-linear regression models the null hypothesis was rejected in favour of the alternative.  In the case of the the simple linear regression, the p-value was extremely small, $0.2*10^{-15}$.  In the multi-linear regression model, infant deaths were the highest statistically significant factor with a p-value of $0.48*10^{-9}$.
+
+When building the multiple linear regression model, it was determined that the country group did not have a statistically significant impact on the model, with a p-value of 0.065, and therefore was excluded from the model.  The only variable that had a positive slope was GDP, all other variables negatively affected male life expectancy.
+
+The residual standard errors for the simple linear regression and the multiple linear regression models are 2.877 and 2.122 respectively.  Because the RSE is smaller for the multiple linear regression, this is a better fitted linear model.
+
+## References
+
+Day, A. (ed.) (1992), The Annual Register 1992, 234, London: Longmans.
+
+U.N.E.S.C.O. 1990 Demographic Yearbook (1990), New York: United Nations.
+
