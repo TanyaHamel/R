@@ -1,0 +1,179 @@
+---
+title: "Bellabeat Captstone Case Study"
+author: "Tanya"
+date: "27/02/2022"
+output: html_document
+---
+
+
+## Purpose
+
+The purpose of this document is to gain valuable insight on how consumers use smart devices for the purpose of making informed marketing strategies.
+
+
+##Executive Summary
+
+Bellabeat is a tech company that focuses on smart products for women's health.  Bellabeat is currently seeking opportunities for growth and has tasked their marking team to analyse historical data obtained from participants using other company's technology to gain insights on how products are used.  
+
+The result of the analysis will help identify any opportunities for Bellabeat to expand as well as provide valuable insight on how customers interact with similar products.
+
+
+The following report will analyse and share valuable historical trends to address the marketing goals.
+
+
+## Preparing the data
+
+The information supplied from Bellabeats is from a third-party who collected the information from volunteers located [here]<https://www.kaggle.com/arashnic/fitbit>.  Participants consented to publicly share their data.
+
+I was unable to source any other meaningful and reliable data from other sources to supplement this data.
+
+####Importing the data
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(skimr)
+library(lubridate)
+```
+
+```{r}
+dailyActivity <- read.csv("dailyActivity_merged.csv")
+dailySleep <-read.csv("sleepDay_merged.csv")
+WeightLog <- read.csv("weightLogInfo_merged.csv")
+```
+
+####Cleaning the data
+
+In central limit theorm, sample sizes smaller than 30 may not have an approximately normal distribtuion.  That means that the sample size may not represent the population. We will check the sample sizes for the upcoming analysis.
+
+
+```{r}
+n_unique(WeightLog$Id)
+n_unique(dailyActivity$Id)
+n_unique(dailySleep$Id)
+```
+In central limit theorm, sample sizes smaller than 30 may not have an approximately normal distribtuion.  That means that the sample size may not represent the population.  For the case of weightId there are only 8 results which means that the data could have bias skew due to the limited sample size.  This dataset will have to be excluded.  However, the lack of data suggests that further study could be conducted to determine why there was a lack of participation for logging weight through the use of smart trackers.  For the case of Sleep, there are 24 unique sample sizes.  This indicates there may be some skew due to the sample size, however it is close enough to 30 that we can include it in analysis.
+
+There is no need to check calories or steps as they are included in the dailyActivity dataframe.
+
+```{r}
+str(dailySleep)
+```
+
+```{r}
+str(dailyActivity)
+```
+
+```{r}
+table(dailyActivity$Id)
+```
+
+It appears that most users recorded every day however a few were less diligent with their recordings.
+
+Next, identify and remove any duplicated and null rows, as they will affect averages in later data transformation.
+
+```{r}
+dailyActivity <- dailyActivity %>%
+  distinct() %>%
+  drop_na()
+dailySleep <- dailySleep %>%
+  distinct() %>%
+  drop_na()
+```
+
+I am going to join dailySleep to dailyActivity and need to clean the columns in dailySleep
+
+```{r}
+dailySleep <- dailySleep %>%
+  rename(ActivityDate = SleepDay)
+```
+
+And there are inconsistent datetimes between dailyActivty and dailySleep to clean.
+
+```{r}
+dailySleep <- dailySleep %>% 
+  mutate(ActivityDate = as_date(ActivityDate, format = "%m/%d/%Y  %I:%M:%S %p"))
+
+dailyActivity <- dailyActivity %>% 
+  mutate(ActivityDate = as_date(ActivityDate, format = "%m/%d/%Y"))
+```
+
+
+There are categories of activities from Sedentary Minutes to Very Active Minutes.  I need to group this together better so I can analyse trends in the data.
+
+```{r}
+dailyActivity_byType <- dailyActivity %>%
+ summarise(
+userype = factor(case_when(
+    SedentaryMinutes >= 0 & LightlyActiveMinutes < mean(LightlyActiveMinutes) & FairlyActiveMinutes < mean(FairlyActiveMinutes) & VeryActiveMinutes < mean(VeryActiveMinutes) ~ "Sedentary",
+    SedentaryMinutes >= 0 & LightlyActiveMinutes > mean(LightlyActiveMinutes) & FairlyActiveMinutes < mean(FairlyActiveMinutes) & VeryActiveMinutes < mean(VeryActiveMinutes) ~ "Lightly Active",
+    SedentaryMinutes >= 0 & LightlyActiveMinutes >= 0 & FairlyActiveMinutes > mean(FairlyActiveMinutes) & VeryActiveMinutes < mean(VeryActiveMinutes) ~ "Fairly Active",
+    SedentaryMinutes >= 0 & LightlyActiveMinutes >= 0 & FairlyActiveMinutes >= 0 & VeryActiveMinutes > mean(VeryActiveMinutes) ~ "Very Active",
+),levels=c("Sedentary", "Lightly Active", "Fairly Active", "Very Active")), ActivityDate, TotalSteps, Calories, Id)
+```
+
+Now I am going to merge in the sleep for additional analysis.
+
+```{r}
+dailyActivity_Sleep <- merge(dailyActivity_byType, dailySleep, by=c("Id", "ActivityDate"))
+glimpse(dailyActivity_Sleep)
+```
+
+####Analysis
+
+```{r}
+stepsMean <- mean(dailyActivity$TotalSteps)
+```
+
+```{r}
+  ggplot(dailyActivity_byType)+
+  geom_point(mapping = aes(x=ActivityDate, y=TotalSteps, color = Id))+
+  geom_hline(yintercept = stepsMean, col="red")+
+  labs(title = "Total Steps by Participants", caption = "Average steps noted by red trendline")+
+  theme(legend.position = "None")
+```
+There are some outliers where participants do over 30,000 steps a day, but on average the total steps per day are `stepsMean`.
+
+```{r}
+ggplot(dailyActivity_byType)+
+  geom_bar(mapping = aes(x=userType, fill=userType))+
+  labs(title = "User Type Distribution based on Activity")
+```
+
+```{r}
+ggplot(dailyActivity_byType)+
+  geom_boxplot(mapping = aes(x=userType, y=Calories, color = userType))+
+   labs(title = "Caloric Burn by User Type Activity")
+```
+
+```{r}
+ggplot(dailyActivity_Sleep)+
+  geom_boxplot(mapping = aes(x=userType, y=TotalMinutesAsleep, fill=userType))+
+  labs(title = "Sleeping Patterns Based on Participant Activity")
+```
+##Results and Recommendations
+
+####Results from Analaysis
+
+The analysis has yielded the following information:
+
+*Average steps of participants was `stepsMean`.
+
+*Participants did not track their weight.  There is no data to suggest why this feature was not used.
+
+*Most common activity type for participants was Sedentary followed by Very Active.
+
+*The data confirms that higher intensity in activity results in more calories burned.
+
+*Very active people tend to sleep less than Sedentary, who tend to sleep more.
+
+
+####Recommendations
+
+Further research should be conducted as to why participants did not track their weight.  There could be opportunity there to integrate better weight trackers than currently offered by the competition.
+
+There is opportunity to expand the sleeping functions on smart devices, particularly for active users who are sleeping less.
+
+There is also opportunity to expand features on caloric tracking based on activity level for those targeting weight maintenance or need visualization motivation for their work = reward mentality.
+
+
